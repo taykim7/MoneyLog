@@ -6,7 +6,6 @@
 	request.setCharacterEncoding("UTF-8");
 	String cp = request.getContextPath();
 %>
-
 <%
 		// 월 신규 회원 수
 		int data1 = 434;
