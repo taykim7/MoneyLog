@@ -2,7 +2,9 @@ package com.test.mvc;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.util.Calendar;
 
+import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
@@ -47,7 +49,7 @@ public class UserController
 
 	// 로그인 처리
 	@RequestMapping(value = "/login.action", method = RequestMethod.POST)
-	public String login(HttpServletRequest request, HttpServletResponse response,HttpSession session, Model model) throws SQLException 
+	public String login(HttpServletRequest request, HttpServletResponse response,HttpSession session, Model model, boolean rememberId) throws SQLException 
 	{ 
 		String result = null;
 	 
@@ -72,13 +74,29 @@ public class UserController
 			session.setAttribute("user_dstn_cd", dto.getUser_dstn_cd());
 			session.setAttribute("user_id", user_id);
 			session.setAttribute("user_name", dto.getUser_name());
-			 
+			
+			if (rememberId) {
+	            //      1. 쿠키를 생성
+	            Cookie cookie = new Cookie("id", user_id);
+	            //      2. 응답에 저장
+	            response.addCookie(cookie);
+
+	        } else {
+	            // 쿠키를 삭제
+	            Cookie cookie = new Cookie("id", user_id);
+	            cookie.setMaxAge(0);    // 쿠키를 삭제
+	            //      2. 응답에 저장
+	            response.addCookie(cookie);
+	        }
+			
 			result = "/fstcalendar.action";
 		} 
 		else 
 		{ 
 			// 로그인 실패
 			request.setAttribute("msg", "아이디 또는 비밀번호가 일치하지 않습니다.");
+			
+			
 			result = "/UserLogin.jsp";
 		}
 		 	return result; 
@@ -287,15 +305,41 @@ public class UserController
 		dto.setUser_dstn_cd(session_user_dstn_cd);
 		dto.setUser_name(session_user_name);
 		
-		mv.addObject("monthInTotFst", dao.monthInTotFst(dto)); 
-		mv.addObject("monthOutTotFst", dao.monthOutTotFst(dto)); 
+		// 태형 추가
+		MoneyCalendar moneyCalendar = new MoneyCalendar();
+		
+		// Calendar 객체 생성
+		Calendar cal = Calendar.getInstance();
+		
+		// 현재 날짜
+		int nowYear = cal.get(Calendar.YEAR);
+		int nowMonth = cal.get(Calendar.MONTH)+1;
+		
+		String yOptions = moneyCalendar.getyOptions(nowYear);
+		String mOptions = moneyCalendar.getmOptions(nowMonth);
+		String calStr = moneyCalendar.getCalendar(nowYear, nowMonth);
+		
+		// 몇년 몇월 출력 (오늘)
+		mv.addObject("year", nowYear);
+		mv.addObject("month", nowMonth);
+		
+		mv.addObject("yOptions", yOptions);
+		mv.addObject("mOptions", mOptions);
+		mv.addObject("calStr", calStr);
+		
+		dto.setYear(Integer.toString(nowYear));
+		dto.setMonth(Integer.toString(nowMonth));
+		
+		mv.addObject("monthInTot", dao.monthInTot(dto)); 
+		mv.addObject("monthOutTot", dao.monthOutTot(dto)); 
 		mv.addObject("nowRemain", dao.nowRemain(dto)); 
+		mv.addObject("inTot", dao.calendarInTot(dto)); 
+		mv.addObject("outTot", dao.calendarOutTot(dto));
 		
 		request.setAttribute("pigTotCount", dao.pigTotCount(dto));
 		request.setAttribute("pigMonthCount", dao.pigMonthCount(dto));
-		
+				
 		mv.setViewName("/UserAcntCalendar.jsp");
-		// mv.setViewName("/calendar.action");
 		return mv;
 	}
 	
@@ -309,19 +353,32 @@ public class UserController
 		
 		String session_user_dstn_cd = (String)session.getAttribute("user_dstn_cd"); //session 객체에서 세션으로 set된 값 get으로 가져오기
 		String session_user_name = (String)session.getAttribute("user_name"); //session 객체에서 세션으로 set된 값 get으로 가져오기
-		String session_year = (String)session.getAttribute("year");
-		String session_month = (String)session.getAttribute("month");
 		
+
 		dto.setUser_dstn_cd(session_user_dstn_cd);
 		dto.setUser_name(session_user_name);
-		dto.setYear(session_year);
-		dto.setMonth(session_month);
 		
 		mv.addObject("monthInTot", dao.monthInTot(dto)); 
 		mv.addObject("monthOutTot", dao.monthOutTot(dto)); 
-		mv.addObject("nowRemain", dao.nowRemain(dto)); 
-		// mv.addObject("dayInTot", dao.dayInTot(dto));
-		// mv.addObject("dayOutTot", dao.dayOutTot(dto));
+		mv.addObject("nowRemain", dao.nowRemain(dto));
+		
+		// 태형 추가
+		MoneyCalendar moneyCalendar = new MoneyCalendar();
+		
+		String yOptions = moneyCalendar.getyOptions(Integer.parseInt(dto.getYear()));
+		String mOptions = moneyCalendar.getmOptions(Integer.parseInt(dto.getMonth()));
+		String calStr = moneyCalendar.getCalendar(Integer.parseInt(dto.getYear()), Integer.parseInt(dto.getMonth()));
+		
+		// 몇년 몇월 출력
+		mv.addObject("year", dto.getYear());
+		mv.addObject("month", dto.getMonth());
+		
+		mv.addObject("yOptions", yOptions);
+		mv.addObject("mOptions", mOptions);
+		mv.addObject("calStr", calStr);
+		
+		mv.addObject("inTot", dao.calendarInTot(dto)); 
+		mv.addObject("outTot", dao.calendarOutTot(dto)); 
 		
 		request.setAttribute("pigTotCount", dao.pigTotCount(dto));
 		request.setAttribute("pigMonthCount", dao.pigMonthCount(dto));
@@ -342,18 +399,20 @@ public class UserController
 		
 		String session_user_dstn_cd = (String)session.getAttribute("user_dstn_cd"); //session 객체에서 세션으로 set된 값 get으로 가져오기
 		String session_user_name = (String)session.getAttribute("user_name"); 		//session 객체에서 세션으로 set된 값 get으로 가져오기
-		String session_year = (String)session.getAttribute("year");
-		String session_month = (String)session.getAttribute("month");
+		//String session_year = (String)session.getAttribute("year");
+		//String session_month = (String)session.getAttribute("month");
 
 		dto.setUser_dstn_cd(session_user_dstn_cd);
 		dto.setUser_name(session_user_name);
-		dto.setYear(session_year);
-		dto.setMonth(session_month);
+		//dto.setYear(session_year);
+		//dto.setMonth(session_month);
 		
-		mv.setViewName("/UserAcntMonthIn.jsp");
-
+		mv.addObject("year", dto.getYear()); 
+		mv.addObject("month", dto.getMonth()); 
 		mv.addObject("monthInTot", dao.monthInTot(dto)); 
 		mv.addObject("monthInList", dao.monthInList(dto));
+		
+		mv.setViewName("/UserAcntMonthIn.jsp");
 		
 		return mv;
 	}
@@ -369,18 +428,20 @@ public class UserController
 
 		String session_user_dstn_cd = (String)session.getAttribute("user_dstn_cd"); //session 객체에서 세션으로 set된 값 get으로 가져오기
 		String session_user_name = (String)session.getAttribute("user_name"); //session 객체에서 세션으로 set된 값 get으로 가져오기
-		String session_year = (String)session.getAttribute("year");
-		String session_month = (String)session.getAttribute("month");		
+		//String session_year = (String)session.getAttribute("year");
+		//String session_month = (String)session.getAttribute("month");		
 		
-		dto.setYear(session_year);
-		dto.setMonth(session_month);
 		dto.setUser_dstn_cd(session_user_dstn_cd);
 		dto.setUser_name(session_user_name);
+		//dto.setYear(session_year);
+		//dto.setMonth(session_month);
 
-		mv.setViewName("/UserAcntMonthOut.jsp");
-
+		mv.addObject("year", dto.getYear()); 
+		mv.addObject("month", dto.getMonth()); 
 		mv.addObject("monthOutTot", dao.monthOutTot(dto)); 
 		mv.addObject("monthOutList", dao.monthOutList(dto));
+		
+		mv.setViewName("/UserAcntMonthOut.jsp");
 		
 		return mv;
 	}
@@ -388,7 +449,7 @@ public class UserController
 	
 	// 당일 가계부 리스트 출력
 	@RequestMapping(value="/useracntdaylist.action", method = {RequestMethod.GET, RequestMethod.POST})	// 원래 GET 처리!!!!
-	public ModelAndView acntDayInoutList(String day, UserDTO dto, HttpSession session)
+	public ModelAndView acntDayInoutList(UserDTO dto, HttpSession session)
 	{
 		IUserDAO dao = sqlSession.getMapper(IUserDAO.class);
 		
@@ -396,20 +457,30 @@ public class UserController
 
 		String session_user_dstn_cd = (String)session.getAttribute("user_dstn_cd");  //session 객체에서 세션으로 set된 값 get으로 가져오기
 		String session_user_name = (String)session.getAttribute("user_name"); 		//session 객체에서 세션으로 set된 값 get으로 가져오기
-		String session_year = (String)session.getAttribute("year");
-		String session_month = (String)session.getAttribute("month");
+		//String session_year = (String)session.getAttribute("year");
+		//String session_month = (String)session.getAttribute("month");
 		
 		dto.setUser_dstn_cd(session_user_dstn_cd);
 		dto.setUser_name(session_user_name);
-		dto.setYear(session_year);
-		dto.setMonth(session_month);
-		dto.setDay(day);
+		
+		String year = dto.getYear();
+		String month = dto.getMonth();
+		String day = dto.getDay();
+		String yearMonthDay = year+"-"+month+"-"+day;
+		
+		dto.setYearMonthDay(yearMonthDay);
 
 		mv.addObject("inoutCateList", dao.inoutCateList());			// 구분(수입/지출) 카테고리 출력
 		// ajax 처리(1차, 2차 카테고리)
 		
-		mv.addObject("day", day);
-		mv.addObject("dayInoutList", dao.dayInoutList(dto));		// 당일 수입지출 리스트
+		// 년월일
+		mv.addObject("year", dto.getYear());
+		mv.addObject("month", dto.getMonth());
+		mv.addObject("day", dto.getDay());
+		
+		// 당일 수입지출 리스트
+		mv.addObject("dayInoutList", dao.dayInoutList(dto));
+		
 		mv.addObject("fstCateList", dao.fstCateList());
 		mv.addObject("secCateList", dao.secCateList());
 		// mv.addObject("fstCateListOne", dao.fstCateListOne(dto));
@@ -422,30 +493,26 @@ public class UserController
 		
 	
 	// 가계부 등록 처리
-	@RequestMapping(value="acntreg.action", method = RequestMethod.POST)
+	@RequestMapping(value="acntreg.action", method = RequestMethod.GET)
 	public ModelAndView acntReg(UserDTO dto, HttpServletRequest request, HttpServletResponse response,  HttpSession session)
 	{
 		IUserDAO dao = sqlSession.getMapper(IUserDAO.class);
 		
 		ModelAndView mv = new ModelAndView();
-
-		String session_user_dstn_cd = (String)session.getAttribute("user_dstn_cd");  //session 객체에서 세션으로 set된 값 get으로 가져오기
-		String session_year = (String)session.getAttribute("year");
-		String session_month = (String)session.getAttribute("month");
 		
-		String cate_sec_cd = request.getParameter("cate_sec_cd");
-		String acnt_dtl_cont = request.getParameter("acnt_dtl_cont");
-		String amnt = request.getParameter("amnt");
+		String year = dto.getYear();
+		String month = dto.getMonth();
+		String day = dto.getDay();
+		String yearMonthDay = year+"-"+month+"-"+day;
 		
-		dto.setUser_dstn_cd(session_user_dstn_cd);
+		dto.setYearMonthDay(yearMonthDay);
 		
-		dto.setYear(session_year);
-		dto.setMonth(session_month);
-		dto.setCate_sec_cd(cate_sec_cd);
-		dto.setAcnt_dtl_cont(acnt_dtl_cont);
-		dto.setAmnt(amnt);
+		dao.acntReg(dto);
 		
-		mv.addObject("acntReg", dao.acntReg(dto));			// 구분(수입/지출) 카테고리 출력
+		// 년월일
+		mv.addObject("year", dto.getYear());
+		mv.addObject("month", dto.getMonth());
+		mv.addObject("day", dto.getDay());
 		
 		mv.setViewName("/useracntdaylist.action");
 		
@@ -499,21 +566,26 @@ public class UserController
 
 		String session_user_dstn_cd = (String)session.getAttribute("user_dstn_cd"); //session 객체에서 세션으로 set된 값 get으로 가져오기
 		String session_user_name = (String)session.getAttribute("user_name"); //session 객체에서 세션으로 set된 값 get으로 가져오기
-		String session_year = (String)session.getAttribute("year");
-		String session_month = (String)session.getAttribute("month");
-		dto.setYear(session_year);
-		dto.setMonth(session_month);
+		//String session_year = (String)session.getAttribute("year");
+		//String session_month = (String)session.getAttribute("month");
+		
 		dto.setUser_dstn_cd(session_user_dstn_cd);
 		dto.setUser_name(session_user_name);
+		//dto.setYear(session_year);
+		//dto.setMonth(session_month);
 
-		mv.setViewName("/Analysis.jsp");
-		
 		mv.addObject("monthInTot", dao.monthInTot(dto)); 			// 해당월 수입 총액
 		mv.addObject("monthOutTot", dao.monthOutTot(dto)); 			// 해당월 지출 총액
 		mv.addObject("allInAvg", dao.allInAvg(dto)); 				// 내 수입 전체 평균
 		mv.addObject("allOutAvg", dao.allOutAvg(dto)); 				// 내 지출 전체 평균
 		mv.addObject("similarInAvg", dao.similarInAvg(dto)); 		// 비슷한 이용자의 수입 평균
 		mv.addObject("similarOutAvg", dao.similarOutAvg(dto)); 		// 비슷한 이용자의 지출 평균
+
+		// 몇년 몇월 출력
+		mv.addObject("year", dto.getYear());
+		mv.addObject("month", dto.getMonth());
+		
+		mv.setViewName("/Analysis.jsp");
 		
 		return mv;
 	}
@@ -529,16 +601,24 @@ public class UserController
 		
 		String session_user_dstn_cd = (String)session.getAttribute("user_dstn_cd");  //session 객체에서 세션으로 set된 값 get으로 가져오기
 		String session_user_name = (String)session.getAttribute("user_name"); 		//session 객체에서 세션으로 set된 값 get으로 가져오기
-		String session_year = (String)session.getAttribute("year");
-		String session_month = (String)session.getAttribute("month");
-		dto.setYear(session_year);
-		dto.setMonth(session_month);
+		//String session_year = (String)session.getAttribute("year");
+		//String session_month = (String)session.getAttribute("month");
+		//dto.setYear(session_year);
+		//dto.setMonth(session_month);
 		dto.setUser_dstn_cd(session_user_dstn_cd);
 		dto.setUser_name(session_user_name);
 
-		mv.setViewName("/AnalysisIn.jsp");		
 		mv.addObject("monthInTot", dao.monthInTot(dto)); 			// 해당월 수입 총액
 		mv.addObject("monthInList", dao.monthInList(dto));			// 해당월 수입 리스트
+		
+		// 몇년 몇월 출력
+		mv.addObject("year", dto.getYear());
+		mv.addObject("month", dto.getMonth());
+		
+		// 그래프
+		mv.addObject("inOutData", dao.inOutData(dto));
+	
+		mv.setViewName("/AnalysisIn.jsp");	
 		
 		return mv;
 	}
@@ -554,16 +634,25 @@ public class UserController
 		
 		String session_user_dstn_cd = (String)session.getAttribute("user_dstn_cd"); //session 객체에서 세션으로 set된 값 get으로 가져오기
 		String session_user_name = (String)session.getAttribute("user_name"); //session 객체에서 세션으로 set된 값 get으로 가져오기
-		String session_year = (String)session.getAttribute("year");
-		String session_month = (String)session.getAttribute("month");
-		dto.setYear(session_year);
-		dto.setMonth(session_month);
+		//String session_year = (String)session.getAttribute("year");
+		//String session_month = (String)session.getAttribute("month");
+		//dto.setYear(session_year);
+		//dto.setMonth(session_month);
 		dto.setUser_dstn_cd(session_user_dstn_cd);
 		dto.setUser_name(session_user_name);
-
-		mv.setViewName("/AnalysisOut.jsp");		
+		
+		
+		// 몇년 몇월 출력
+		mv.addObject("year", dto.getYear());
+		mv.addObject("month", dto.getMonth());
+		
+		// 그래프
+		mv.addObject("inOutData", dao.inOutData(dto));
+		
 		mv.addObject("monthOutTot", dao.monthOutTot(dto)); 
 		mv.addObject("monthOutList", dao.monthOutList(dto));
+		
+		mv.setViewName("/AnalysisOut.jsp");	
 		
 		return mv;
 	}
@@ -974,15 +1063,36 @@ public class UserController
 		
 		IUserDAO dao =sqlSession.getMapper(IUserDAO.class);
 		
-		
 		model.addAttribute("userNotiList", dao.userNotiList());      
-	
 		
 		result = "/UserNotiList.jsp";
 		
 		return result;
 		
 	}
+	
+	// 현수 추가 ================================================================================================
+	
+	// 공지사항 항목 이동      
+	@RequestMapping(value="/usernotiselect.action", method=RequestMethod.GET)
+	public ModelAndView UserNotiSelect(HttpServletRequest request, HttpServletResponse response, UserDTO dto)
+	{
+		ModelAndView mv = new ModelAndView();
+
+		IUserDAO dao =sqlSession.getMapper(IUserDAO.class);
+		
+	 	String noti_cd = request.getParameter("noti_cd");
+	 	
+	 	dto.setNoti_cd(noti_cd);
+	 	dao.notiViewPlus(dto);
+
+		mv.setViewName("/UserNotiCont.jsp");
+		mv.addObject("userNotiSelect", dao.userNotiSelect(dto)); 
+
+		return mv;
+	}
+	//=======================================================================================================
+	
 	
 	// 고객센터 사이드바에서 문의하기 클릭시 문의글 리스트       
 	@RequestMapping(value="/userqnalist.action", method=RequestMethod.GET)

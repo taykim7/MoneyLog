@@ -2,6 +2,7 @@ package com.test.mvc;
 
 import java.sql.SQLException;
 
+import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
@@ -12,6 +13,8 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.servlet.ModelAndView;
+
 
 @Controller
 public class AdminController
@@ -29,7 +32,7 @@ public class AdminController
 
 	// 관리자 로그인 
 	@RequestMapping(value = "/adlogin.action", method = RequestMethod.POST)
-	public String adLogin(HttpServletRequest request, HttpServletResponse response, HttpSession session, Model model, AdminDTO dto) throws SQLException 
+	public String adLogin(HttpServletRequest request, HttpServletResponse response, HttpSession session, Model model, AdminDTO dto, boolean rememberId) throws SQLException 
 	{ 
 		String result = null;
 	 
@@ -51,6 +54,20 @@ public class AdminController
 			// 세션에 값 저장하기
 			session.setAttribute("ad_cd", dto.getAd_cd());
 			session.setAttribute("ad_id", ad_id);
+			
+			if (rememberId) {
+	            //      1. 쿠키를 생성
+	            Cookie cookie = new Cookie("id", ad_id);
+	            //      2. 응답에 저장
+	            response.addCookie(cookie);
+
+	        } else {
+	            // 쿠키를 삭제
+	            Cookie cookie = new Cookie("id", ad_id);
+	            cookie.setMaxAge(0);    // 쿠키를 삭제
+	            //      2. 응답에 저장
+	            response.addCookie(cookie);
+	        }
 			 
 			result = "/admain.action";
 		} 
@@ -76,9 +93,51 @@ public class AdminController
 	 	dto.setAd_cd((String)session.getAttribute("ad_cd"));
 	 	dto.setAd_id((String)session.getAttribute("ad_id"));
 	 	 
+	 	// 오늘의 할일
 		model.addAttribute("countPostRept", dao.mainCountPostRept());
 		model.addAttribute("countCmntRept", dao.mainCountCmntRept());
 		model.addAttribute("countQna", dao.mainCountQna());
+		
+		// 공지사항
+		model.addAttribute("mainNotiList", dao.mainNotiList(dto));
+		
+		// 회원 현황   --> 함수 하나 추가해서 문자 반복문으로 돌리기
+		model.addAttribute("data1", dao.mainMonthUserCount("01"));
+		model.addAttribute("data2", dao.mainMonthUserCount("02"));
+		model.addAttribute("data3", dao.mainMonthUserCount("03"));
+		model.addAttribute("data4", dao.mainMonthUserCount("04"));
+		model.addAttribute("data5", dao.mainMonthUserCount("05"));
+		model.addAttribute("data6", dao.mainMonthUserCount("06"));
+		model.addAttribute("data7", dao.mainMonthUserCount("07"));
+		model.addAttribute("data8", dao.mainMonthUserCount("08"));
+		model.addAttribute("data9", dao.mainMonthUserCount("09"));
+		model.addAttribute("data10", dao.mainMonthUserCount("10"));
+		model.addAttribute("data11", dao.mainMonthUserCount("11"));
+		model.addAttribute("data12", dao.mainMonthUserCount("12"));
+		
+		model.addAttribute("ldata1", dao.mainMonthLeaveUserCount("01"));
+		model.addAttribute("ldata2", dao.mainMonthLeaveUserCount("02"));
+		model.addAttribute("ldata3", dao.mainMonthLeaveUserCount("03"));
+		model.addAttribute("ldata4", dao.mainMonthLeaveUserCount("04"));
+		model.addAttribute("ldata5", dao.mainMonthLeaveUserCount("05"));
+		model.addAttribute("ldata6", dao.mainMonthLeaveUserCount("06"));
+		model.addAttribute("ldata7", dao.mainMonthLeaveUserCount("07"));
+		model.addAttribute("ldata8", dao.mainMonthLeaveUserCount("08"));
+		model.addAttribute("ldata9", dao.mainMonthLeaveUserCount("09"));
+		model.addAttribute("ldata10", dao.mainMonthLeaveUserCount("10"));
+		model.addAttribute("ldata11", dao.mainMonthLeaveUserCount("11"));
+		model.addAttribute("ldata12", dao.mainMonthLeaveUserCount("12"));
+				
+		// 신규회원 현황
+		model.addAttribute("userCount", dao.mainUserCount());
+		model.addAttribute("newUserCount", dao.mainNewUserCount());
+		model.addAttribute("leaveUserCount", dao.mainLeaveUserCount());
+		
+		// 머니로그 현황
+		model.addAttribute("contentCount", dao.mainContentCount());
+		model.addAttribute("newContentCount", dao.mainNewContentCount());
+		model.addAttribute("reptContentCount", dao.mainReptContentCount());
+		model.addAttribute("reptCmntCount", dao.mainReptCmntCount());
 		
 		result = "/AdMain.jsp";
 		return result;
@@ -97,6 +156,135 @@ public class AdminController
     	result = "/adloginform.action";
     	return result;
 	}
+	
+	// 관리자 회원관리
+	@RequestMapping(value = "/aduserlist.action", method = RequestMethod.GET)
+	public ModelAndView adUserList(AdminDTO dto) throws SQLException 
+	{
+		ModelAndView mv = new ModelAndView();
+		
+		IAdminDAO dao =sqlSession.getMapper(IAdminDAO.class);
+		 
+		mv.addObject("adUserList", dao.adUserList());
 
+		mv.setViewName("/AdUserList.jsp");
+		
+		return mv;
+		
+	}
+	
+	// 회원 정보 조회 (신고내역까지)
+	@RequestMapping(value="/aduserinfo.action", method=RequestMethod.GET)
+	public String adUserInfo(HttpServletRequest request, HttpServletResponse response, HttpSession session, Model model, AdminDTO dto)
+	{
+		String result = null;
+		
+	    IAdminDAO dao = sqlSession.getMapper(IAdminDAO.class);
+	  	
+	    // adUserList 에서 user_dstn_cd 받기
+	 	String user_dstn_cd = request.getParameter("user_dstn_cd");
+	   	
+	    // set
+	 	dto.setUser_dstn_cd(user_dstn_cd);
+
+	    // dao 에 있는 select 쿼리 실행
+	 	// → model.add 후 AdUserInfo.jsp에서 el 사용
+	 	model.addAttribute("adUserInfo", dao.adUserInfo(dto));
+
+	 	model.addAttribute("userReptHistory", dao.userReptHistory(dto));
+
+	 	 
+        result = "/AdUserInfo.jsp";
+		
+		return result;
+	}
+	
+	// 관리자 회원 게시글 리스트 조회
+	@RequestMapping(value="/aduserpostlist.action", method=RequestMethod.GET)
+	public String adUserPostList(HttpServletRequest request, HttpServletResponse response, HttpSession session, Model model, AdminDTO dto)
+	{
+		String result = null;
+		
+	    IAdminDAO dao = sqlSession.getMapper(IAdminDAO.class);
+	  	
+	    // adUserList 에서 user_dstn_cd 받기
+	 	String user_dstn_cd = request.getParameter("user_dstn_cd");
+	   	
+	    // set
+	 	dto.setUser_dstn_cd(user_dstn_cd);
+
+	    // dao 에 있는 select 쿼리 실행
+	 	// → model.add 후 AdUserPostList.jsp에서 el 사용
+	 	model.addAttribute("adUserPostList", dao.adUserPostList(dto));
+	 	
+
+        result = "/AdUserPostList.jsp";
+        
+		
+		return result;
+	}
+	
+	// 관리자 회원 댓글 리스트 조회
+	@RequestMapping(value="/adusercmntlist.action", method=RequestMethod.GET)
+	public String adUserCmntList(HttpServletRequest request, HttpServletResponse response, HttpSession session, Model model, AdminDTO dto)
+	{
+		String result = null;
+		
+	    IAdminDAO dao = sqlSession.getMapper(IAdminDAO.class);
+	  	
+	    // adUserList 에서 user_dstn_cd 받기
+	 	String user_dstn_cd = request.getParameter("user_dstn_cd");
+	   	
+	    // set
+	 	dto.setUser_dstn_cd(user_dstn_cd);
+
+	    // dao 에 있는 select 쿼리 실행
+	 	// → model.add 후 AdUserCmntList.jsp에서 el 사용
+	 	model.addAttribute("adUserCmntList", dao.adUserCmntList(dto));
+
+        result = "/AdUserCmntList.jsp";
+		
+		return result;
+	}
+	
+	// 영구정지 회원 리스트 조회
+	@RequestMapping(value = "/adbanlist.action", method = RequestMethod.GET)
+	public String adBanList( Model model, AdminDTO dto) throws SQLException 
+	{	
+		String result = null;
+		
+		IAdminDAO dao =sqlSession.getMapper(IAdminDAO.class);
+		 
+		model.addAttribute("adBanList", dao.adBanList());
+		
+		result = "/AdBan.jsp";
+		
+		return result;
+		
+	}
+	
+	// 영구정지 회원 정보 조회
+	@RequestMapping(value="/adbaninfo.action", method=RequestMethod.GET)
+	public String adBanInfo(HttpServletRequest request, HttpServletResponse response, HttpSession session, Model model, AdminDTO dto)
+	{
+		String result = null;
+		
+	    IAdminDAO dao = sqlSession.getMapper(IAdminDAO.class);
+	  	
+	    // adBan 에서 user_dstn_cd 받기
+	 	String user_dstn_cd = request.getParameter("user_dstn_cd");
+	   	
+	    // set
+	 	dto.setUser_dstn_cd(user_dstn_cd);
+
+	    // dao 에 있는 select 쿼리 실행
+	 	// → model.add 후 AdBanInfo.jsp에서 el 사용
+	 	model.addAttribute("adUserInfo", dao.adUserInfo(dto));
+	 	model.addAttribute("userReptHistory", dao.userReptHistory(dto));
+
+        result = "/AdBanInfo.jsp";
+		
+		return result;
+	}
 
 }
